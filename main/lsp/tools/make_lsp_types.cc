@@ -54,6 +54,10 @@ shared_ptr<JSONType> makeArray(shared_ptr<JSONType> type) {
     return make_shared<JSONArrayType>(type);
 }
 
+shared_ptr<JSONType> makePair(shared_ptr<JSONType> first, shared_ptr<JSONType> second) {
+    return make_shared<JSONPairType>(first, second);
+}
+
 void makeLSPTypes(vector<shared_ptr<JSONClassType>> &enumTypes, vector<shared_ptr<JSONObjectType>> &classTypes) {
     // Singletons
     shared_ptr<JSONType> JSONNull = make_shared<JSONNullType>();
@@ -149,11 +153,17 @@ void makeLSPTypes(vector<shared_ptr<JSONClassType>> &enumTypes, vector<shared_pt
                    },
                    classTypes, {"std::unique_ptr<Diagnostic> copy() const;"});
 
+    auto TextDocumentIdentifier = makeObject("TextDocumentIdentifier",
+                                             {
+                                                 makeField("uri", JSONString),
+                                             },
+                                             classTypes);
+
     auto Command = makeObject("Command",
                               {
                                   makeField("title", JSONString), makeField("command", JSONString),
-                                  // Unused in Sorbet.
-                                  // makeField("arguments", makeOptional(makeArray(JSONAny))),
+                                  // the argument types for calling "editor.action.rename": file URI and position
+                                  makeField("arguments", makeOptional(makePair(JSONString, Position))),
                               },
                               classTypes);
 
@@ -227,11 +237,6 @@ void makeLSPTypes(vector<shared_ptr<JSONClassType>> &enumTypes, vector<shared_pt
                                      makeField("documentChanges", makeOptional(makeArray(TextDocumentEdit)))},
                                     classTypes);
 
-    auto TextDocumentIdentifier = makeObject("TextDocumentIdentifier",
-                                             {
-                                                 makeField("uri", JSONString),
-                                             },
-                                             classTypes);
 
     auto TextDocumentItem = makeObject("TextDocumentItem",
                                        {

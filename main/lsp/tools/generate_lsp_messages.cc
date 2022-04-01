@@ -4,6 +4,7 @@
 using namespace std;
 
 const string JSONArrayType::arrayVar = "a";
+const string JSONPairType::pairVar = "b";
 
 bool writeFile(char *path, fmt::memory_buffer &buffer) {
     ofstream stream(path, ios::trunc);

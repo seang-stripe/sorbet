@@ -144,7 +144,8 @@ unique_ptr<ResponseMessage> CodeActionTask::runRequest(LSPTypecheckerInterface &
                         action->data = move(params);
                     } else {
                         auto workspaceEdit = make_unique<WorkspaceEdit>();
-                        workspaceEdit->documentChanges = getMoveMethodEdits(config, gs, *def, typechecker);
+                        auto [edits, newModuleSymbol] = getMoveMethodEdits(config, gs, *def, typechecker);
+                        workspaceEdit->documentChanges = move(edits);
                         action->edit = move(workspaceEdit);
                     }
                     result.emplace_back(move(action));

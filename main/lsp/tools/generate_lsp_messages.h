@@ -401,6 +401,80 @@ public:
     }
 };
 
+class JSONPairType final : public JSONType {
+private:
+    std::shared_ptr<JSONType> firstType;
+    std::shared_ptr<JSONType> secondType;
+    // Temp variable name used during serialization and deserialization.
+    static const std::string pairVar;
+
+    static void AssignDeserializedFirstElementValue(fmt::memory_buffer &out, std::string_view from) {
+        fmt::format_to(std::back_inserter(out), "{}.first = {};", pairVar, from);
+    }
+
+    static void AssignDeserializedSecondElementValue(fmt::memory_buffer &out, std::string_view from) {
+        fmt::format_to(std::back_inserter(out), "{}.second = {};", pairVar, from);
+    }
+
+    static void AssignSerializedElementValue(fmt::memory_buffer &out, std::string_view from) {
+        fmt::format_to(std::back_inserter(out), "{}.PushBack({}, {});", pairVar, from, ALLOCATOR_VAR);
+    }
+
+public:
+    JSONPairType(std::shared_ptr<JSONType> firstType, std::shared_ptr<JSONType> secondType) : firstType(firstType), secondType(secondType) {}
+
+    BaseKind getCPPBaseKind() const {
+        return BaseKind::ArrayKind;
+    }
+
+    BaseKind getJSONBaseKind() const {
+        return BaseKind::ArrayKind;
+    }
+
+    std::string getCPPType() const {
+        return fmt::format("std::pair<{}, {}>", firstType->getCPPType(), secondType->getCPPType());
+    }
+
+    std::string getJSONType() const {
+        return fmt::format("[{}, {}]", firstType->getCPPType(), secondType->getCPPType());
+    }
+
+    bool wantMove() const {
+        return firstType->wantMove() || secondType->wantMove();
+    }
+
+    void emitFromJSONValue(fmt::memory_buffer &out, std::string_view from, AssignLambda assign,
+                           std::string_view fieldName) {
+        fmt::format_to(std::back_inserter(out), "{{\n");
+        fmt::format_to(std::back_inserter(out), "auto &unwrappedVal = assertJSONField({}, \"{}\");", from, fieldName);
+        fmt::format_to(std::back_inserter(out), "if (!unwrappedVal.IsArray()) {{\n");
+        fmt::format_to(std::back_inserter(out), "throw JSONTypeError(\"{}\", \"array\", unwrappedVal);\n", fieldName,
+                       from);
+        // Use else branch so we operate in new scope to avoid ArrayVar conflicts.
+        fmt::format_to(std::back_inserter(out), "}} else {{\n");
+        fmt::format_to(std::back_inserter(out), "{} {};\n", getCPPType(), pairVar);
+
+        firstType->emitFromJSONValue(out, "std::make_optional<const rapidjson::Value *>(&unwrappedVal.GetArray()[0])", AssignDeserializedFirstElementValue, fieldName);
+        secondType->emitFromJSONValue(out, "std::make_optional<const rapidjson::Value *>(&unwrappedVal.GetArray()[1])", AssignDeserializedSecondElementValue, fieldName);
+        assign(out, fmt::format("std::move({})", pairVar));
+        fmt::format_to(std::back_inserter(out), "}}\n");
+        fmt::format_to(std::back_inserter(out), "}}\n");
+    }
+
+    void emitToJSONValue(fmt::memory_buffer &out, std::string_view from, AssignLambda assign,
+                         std::string_view fieldName) {
+        // Create new scope so our variable names don't conflict with other serialized arrays in same
+        // context.
+        fmt::format_to(std::back_inserter(out), "{{\n");
+        fmt::format_to(std::back_inserter(out), "rapidjson::Value {}(rapidjson::kArrayType);\n", pairVar);
+        firstType->emitToJSONValue(out, fmt::format("{}.first", from), AssignSerializedElementValue, fieldName);
+        secondType->emitToJSONValue(out, fmt::format("{}.second", from), AssignSerializedElementValue, fieldName);
+        assign(out, pairVar);
+        fmt::format_to(std::back_inserter(out), "}}\n");
+    }
+};
+
+
 class JSONIntEnumType final : public JSONClassType {
 private:
     std::vector<std::pair<const std::string, int>> enumValues;

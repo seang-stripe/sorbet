@@ -7,7 +7,7 @@
 
 namespace sorbet::realmain::lsp {
 
-std::vector<std::unique_ptr<TextDocumentEdit>> getMoveMethodEdits(const LSPConfiguration &config,
+    std::pair<std::vector<std::unique_ptr<TextDocumentEdit>>, std::unique_ptr<Position>> getMoveMethodEdits(const LSPConfiguration &config,
                                                                   const core::GlobalState &gs,
                                                                   const core::lsp::MethodDefResponse &definition,
                                                                   LSPTypecheckerInterface &typechecker);

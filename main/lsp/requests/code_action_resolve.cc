@@ -32,8 +32,13 @@ unique_ptr<ResponseMessage> CodeActionResolveTask::runRequest(LSPTypecheckerInte
             auto action = make_unique<CodeAction>("Move method to a new module");
             action->kind = CodeActionKind::RefactorExtract;
             auto workspaceEdit = make_unique<WorkspaceEdit>();
-            workspaceEdit->documentChanges = getMoveMethodEdits(config, gs, *def, typechecker);
+            auto [edits, newModuleSymbol] = getMoveMethodEdits(config, gs, *def, typechecker);
+            workspaceEdit->documentChanges = move(edits);
             action->edit = move(workspaceEdit);
+            auto renameCommand = make_unique<Command>("Rename Symbol",  "editor.action.rename");
+            auto args = make_pair(actualParams->textDocument->uri, move(newModuleSymbol));
+            renameCommand->arguments = move(args);
+            action->command = move(renameCommand);
             response->result = move(action);
         }
     }

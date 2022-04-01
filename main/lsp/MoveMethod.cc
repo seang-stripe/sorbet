@@ -152,10 +152,11 @@ public:
     }
 }; // MethodCallSiteRenamer
 
-vector<unique_ptr<TextEdit>> moveMethod(const LSPConfiguration &config, const core::GlobalState &gs,
+pair<vector<unique_ptr<TextEdit>>, unique_ptr<Position>> moveMethod(const LSPConfiguration &config, const core::GlobalState &gs,
                                         const core::lsp::MethodDefResponse &definition,
                                         LSPTypecheckerInterface &typechecker, string_view newModuleName) {
-    auto moduleStart = fmt::format("module {}{}\n  ", newModuleName, isTSigRequired(gs) ? "\n  extend T::Sig" : "");
+    auto moduleText = "module "s;
+    auto moduleStart = fmt::format("{}{}{}\n  ", moduleText, newModuleName, isTSigRequired(gs) ? "\n  extend T::Sig" : "");
     auto moduleEnd = "\nend";
 
     auto fref = definition.termLoc.file();
@@ -178,6 +179,8 @@ vector<unique_ptr<TextEdit>> moveMethod(const LSPConfiguration &config, const co
 
     auto insertPosition = Range::fromLoc(gs, core::Loc(fref, rootTree.loc().copyWithZeroLength()));
     auto newModuleSource = fmt::format("{}{}{}\n\n", moduleStart, methodSource.value(), moduleEnd);
+    auto newModuleSymbol = insertPosition->start->copy();
+    newModuleSymbol->character += moduleText.size() + 1;
 
     // This manipulations with the positions are required to remove leading tabs and whitespaces at the original method
     // position
@@ -188,21 +191,24 @@ vector<unique_ptr<TextEdit>> moveMethod(const LSPConfiguration &config, const co
     vector<unique_ptr<TextEdit>> res;
     res.emplace_back(make_unique<TextEdit>(move(insertPosition), newModuleSource));
     res.emplace_back(make_unique<TextEdit>(Range::fromLoc(gs, oldMethodLoc.value()), ""));
-    return res;
+
+
+
+    return make_pair<vector<unique_ptr<TextEdit>>, unique_ptr<Position>>(move(res), move(newModuleSymbol));
 }
 
 } // namespace
 
-vector<unique_ptr<TextDocumentEdit>> getMoveMethodEdits(const LSPConfiguration &config, const core::GlobalState &gs,
+pair<vector<unique_ptr<TextDocumentEdit>>, unique_ptr<Position>> getMoveMethodEdits(const LSPConfiguration &config, const core::GlobalState &gs,
                                                         const core::lsp::MethodDefResponse &definition,
                                                         LSPTypecheckerInterface &typechecker) {
     vector<unique_ptr<TextDocumentEdit>> res;
     auto newModuleName = getNewModuleName(gs, definition.name);
     if (!newModuleName.has_value()) {
-        return res;
+        return make_pair(move(res), make_unique<Position>(0,0));
     }
 
-    vector<unique_ptr<TextEdit>> edits = moveMethod(config, gs, definition, typechecker, newModuleName.value());
+    auto [edits, newModuleSymbol] = moveMethod(config, gs, definition, typechecker, newModuleName.value());
 
     auto renamer = make_shared<MethodCallSiteRenamer>(gs, config, definition.name.show(gs), newModuleName.value());
     renamer->getRenameEdits(typechecker, definition.symbol, newModuleName.value());
@@ -219,6 +225,6 @@ vector<unique_ptr<TextDocumentEdit>> getMoveMethodEdits(const LSPConfiguration &
                                       move(edits));
 
     res.emplace_back(move(docEdit));
-    return res;
+    return make_pair(move(res), move(newModuleSymbol));
 }
 } // namespace sorbet::realmain::lsp

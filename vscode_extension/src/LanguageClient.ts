@@ -5,6 +5,8 @@ import {
   OutputChannel,
   window as vscodeWindow,
   env as vscodeEnv,
+  Uri,
+  Position,
 } from "vscode";
 import {
   LanguageClient,
@@ -143,6 +145,12 @@ export default class SorbetLanguageClient implements ErrorHandler {
       }
 
       const caps: any = this._languageClient.initializeResult?.capabilities;
+      const f = Uri.file(
+        "/Users/iz/stripe/sorbet/test/testdata/lsp/code_actions/move_method/no_sig.rb",
+      ).toJSON();
+      const p = new Position(42, 69);
+      console.log(f);
+      console.log(p);
       if (caps.sorbetShowSymbolProvider) {
         this._subscriptions.push(
           commands.registerCommand("sorbet.copySymbolToClipboard", async () => {
